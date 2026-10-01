@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(DEVELOPER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  managedProjects Project[]       @relation("ManagerProjects")
+  projects        ProjectDeveloper[]
+  tasks           Task[]          @relation("AssignedTasks")
+  dailyUpdates    DailyUpdate[]
+  comments        Comment[]
+  notifications   Notification[]
+  activityLogs    ActivityLog[]
+  clientRequests  ClientRequest[] @relation("ClientRequests")
+  clientProjects  Project[]       @relation("ClientProjects")
+  messages        Message[]       @relation("UserMessages")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  DEVELOPER
+  CLIENT
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, ON_HOLD
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  managerId       String?
+  manager         User?              @relation("ManagerProjects", fields: [managerId], references: [id])
+  clientId        String?
+  client          User?              @relation("ClientProjects", fields: [clientId], references: [id])
+  developers      ProjectDeveloper[]
+  tasks           Task[]
+  dailyUpdates    DailyUpdate[]
+  clientRequests  ClientRequest[]
+  comments        Comment[]
+  activityLogs    ActivityLog[]
+}
+
+model ProjectDeveloper {
+  projectId   String
+  developerId String
+  assignedAt  DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  developer   User     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, developerId])
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  status      String   @default("TODO") // TODO, IN_PROGRESS, REVIEW, COMPLETED, BLOCKED
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  dueDate     DateTime?
+  estHours    Float?
+  actHours    Float?   @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedToId String?
+  assignedTo  User?    @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  comments    Comment[]
+  activityLogs ActivityLog[]
+}
+
+model DailyUpdate {
+  id          String   @id @default(uuid())
+  date        DateTime @default(now())
+  completed   String
+  pending     String
+  blockers    String?
+  hoursWorked Float
+  nextPlanned String
+  status      String   @default("SUBMITTED") // SUBMITTED, REVIEWED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  developerId String
+  developer   User     @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ClientRequest {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  status      String   @default("PENDING") // PENDING, IN_REVIEW, ACCEPTED, COMPLETED, REJECTED
+  importance  String   @default("NORMAL") // NORMAL, IMPORTANT, CRITICAL
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  clientId    String
+  client      User     @relation("ClientRequests", fields: [clientId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  clientRequestId String?
+  clientRequest   ClientRequest? @relation(fields: [clientRequestId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  content     String
+  type        String   // INFO, WARNING, SUCCESS
+  read        Boolean  @default(false)
+  referenceId String?  // Optional ID to link to (e.g., Task ID)
+  referenceType String? // e.g., "TASK", "PROJECT"
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String   // e.g., "CREATED_TASK", "UPDATED_STATUS"
+  details     String?  // JSON string or extra details
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId  String
+  author    User     @relation("UserMessages", fields: [authorId], references: [id], onDelete: Cascade)
+}
