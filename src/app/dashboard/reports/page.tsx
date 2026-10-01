@@ -14,15 +14,16 @@ export default async function ReportsPage() {
     redirect('/dashboard');
   }
 
-  const projectStats = await prisma.project.groupBy({
-    by: ['status'],
-    _count: { id: true }
-  });
-
-  const taskStats = await prisma.task.groupBy({
-    by: ['status'],
-    _count: { id: true }
-  });
+  const [projectStats, taskStats] = await Promise.all([
+    prisma.project.groupBy({
+      by: ['status'],
+      _count: { id: true }
+    }),
+    prisma.task.groupBy({
+      by: ['status'],
+      _count: { id: true }
+    })
+  ]);
 
   return (
     <div className="space-y-6">

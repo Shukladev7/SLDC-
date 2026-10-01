@@ -21,25 +21,40 @@ export default async function DashboardPage() {
   let recentProjects: any[] = [];
 
   if (role === 'ADMIN' || role === 'MANAGER') {
-    projectCount = await prisma.project.count();
-    taskCount = await prisma.task.count();
-    userCount = await prisma.user.count();
-    rawTasks = await prisma.task.findMany({ select: { status: true } });
-    recentProjects = await prisma.project.findMany({ take: 3, orderBy: { updatedAt: 'desc' }, include: { tasks: true } });
+    const [pCount, tCount, uCount, rTasks, rProjects] = await Promise.all([
+      prisma.project.count(),
+      prisma.task.count(),
+      prisma.user.count(),
+      prisma.task.findMany({ select: { status: true } }),
+      prisma.project.findMany({ take: 3, orderBy: { updatedAt: 'desc' }, include: { tasks: true } })
+    ]);
+    projectCount = pCount;
+    taskCount = tCount;
+    userCount = uCount;
+    rawTasks = rTasks;
+    recentProjects = rProjects;
   } else if (role === 'DEVELOPER') {
-    projectCount = await prisma.projectDeveloper.count({ where: { developerId: session.user.id } });
-    taskCount = await prisma.task.count({ where: { assignedToId: session.user.id } });
-    rawTasks = await prisma.task.findMany({ where: { assignedToId: session.user.id }, select: { status: true } });
-    
-    const devProjects = await prisma.projectDeveloper.findMany({
-      where: { developerId: session.user.id },
-      include: { project: { include: { tasks: true } } },
-      take: 3
-    });
+    const [pCount, tCount, rTasks, devProjects] = await Promise.all([
+      prisma.projectDeveloper.count({ where: { developerId: session.user.id } }),
+      prisma.task.count({ where: { assignedToId: session.user.id } }),
+      prisma.task.findMany({ where: { assignedToId: session.user.id }, select: { status: true } }),
+      prisma.projectDeveloper.findMany({
+        where: { developerId: session.user.id },
+        include: { project: { include: { tasks: true } } },
+        take: 3
+      })
+    ]);
+    projectCount = pCount;
+    taskCount = tCount;
+    rawTasks = rTasks;
     recentProjects = devProjects.map(dp => dp.project);
   } else if (role === 'CLIENT') {
-    projectCount = await prisma.project.count({ where: { clientId: session.user.id } });
-    recentProjects = await prisma.project.findMany({ where: { clientId: session.user.id }, take: 3, include: { tasks: true } });
+    const [pCount, rProjects] = await Promise.all([
+      prisma.project.count({ where: { clientId: session.user.id } }),
+      prisma.project.findMany({ where: { clientId: session.user.id }, take: 3, include: { tasks: true } })
+    ]);
+    projectCount = pCount;
+    recentProjects = rProjects;
   }
 
   // Aggregate task statuses

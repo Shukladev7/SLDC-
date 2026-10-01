@@ -24,39 +24,36 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const resolvedParams = await params;
 
-  const project = await prisma.project.findUnique({
-    where: { id: resolvedParams.id },
-    include: {
-      manager: true,
-      client: true,
-      developers: {
-        include: { developer: true }
-      },
-      tasks: {
-        include: { assignedTo: true },
-        orderBy: { updatedAt: 'desc' },
-        take: 10
-      },
-      clientRequests: {
-        orderBy: { createdAt: 'desc' },
-        take: 5
+  const [project, allDevelopers] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: resolvedParams.id },
+      include: {
+        manager: true,
+        client: true,
+        developers: {
+          include: { developer: true }
+        },
+        tasks: {
+          include: { assignedTo: true },
+          orderBy: { updatedAt: 'desc' },
+          take: 10
+        },
+        clientRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 5
+        }
       }
-    }
-  });
+    }),
+    (session.user.role === 'ADMIN' || session.user.role === 'MANAGER') 
+      ? prisma.user.findMany({ where: { role: 'DEVELOPER' }, select: { id: true, name: true } }) 
+      : Promise.resolve([])
+  ]);
 
   if (!project) return notFound();
 
   // Basic authorization check - ideally more robust in prod
   if (session.user.role === 'DEVELOPER' && !project.developers.find(d => d.developerId === session.user.id)) return notFound();
   if (session.user.role === 'CLIENT' && project.clientId !== session.user.id) return notFound();
-
-  let allDevelopers: {id: string, name: string}[] = [];
-  if (session.user.role === 'ADMIN' || session.user.role === 'MANAGER') {
-    allDevelopers = await prisma.user.findMany({
-      where: { role: 'DEVELOPER' },
-      select: { id: true, name: true }
-    });
-  }
 
   const totalTasks = project.tasks.length;
   const completedTasks = project.tasks.filter((t: any) => t.status === 'COMPLETED').length;

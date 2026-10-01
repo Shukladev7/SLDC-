@@ -15,8 +15,10 @@ export default async function ProjectsPage() {
   const session = await getServerSession(authOptions);
   if (!session) return null;
 
-  const clients = await prisma.user.findMany({ where: { role: 'CLIENT' } });
-  const managers = await prisma.user.findMany({ where: { role: 'MANAGER' } });
+  const [clients, managers] = await Promise.all([
+    prisma.user.findMany({ where: { role: 'CLIENT' } }),
+    prisma.user.findMany({ where: { role: 'MANAGER' } })
+  ]);
 
   let projects: any[] = [];
 

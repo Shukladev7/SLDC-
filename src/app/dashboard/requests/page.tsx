@@ -13,25 +13,24 @@ export default async function RequestsPage() {
   if (!session) return null;
 
   let requests: any[] = [];
-
-  if (session.user.role === 'ADMIN' || session.user.role === 'MANAGER') {
-    requests = await prisma.clientRequest.findMany({
-      include: { client: true, project: true },
-      orderBy: { createdAt: 'desc' }
-    });
-  } else if (session.user.role === 'CLIENT') {
-    requests = await prisma.clientRequest.findMany({
-      where: { clientId: session.user.id },
-      include: { project: true },
-      orderBy: { createdAt: 'desc' }
-    });
-  }
-
   let clientProjects: any[] = [];
-  if (session.user.role === 'CLIENT' || session.user.role === 'ADMIN') {
-    clientProjects = await prisma.project.findMany({
-      where: session.user.role === 'CLIENT' ? { clientId: session.user.id } : undefined
-    });
+
+  if (session.user.role === 'ADMIN') {
+    const [reqs, projs] = await Promise.all([
+      prisma.clientRequest.findMany({ include: { client: true, project: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.project.findMany()
+    ]);
+    requests = reqs;
+    clientProjects = projs;
+  } else if (session.user.role === 'MANAGER') {
+    requests = await prisma.clientRequest.findMany({ include: { client: true, project: true }, orderBy: { createdAt: 'desc' } });
+  } else if (session.user.role === 'CLIENT') {
+    const [reqs, projs] = await Promise.all([
+      prisma.clientRequest.findMany({ where: { clientId: session.user.id }, include: { project: true }, orderBy: { createdAt: 'desc' } }),
+      prisma.project.findMany({ where: { clientId: session.user.id } })
+    ]);
+    requests = reqs;
+    clientProjects = projs;
   }
 
   const getImportanceColor = (imp: string) => {

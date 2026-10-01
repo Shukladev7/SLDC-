@@ -15,26 +15,38 @@ export default async function TasksPage() {
   if (!session) return null;
 
   let tasks: any[] = [];
+  let allProjects: any[] = [];
+  let allDevelopers: any[] = [];
+
   const includeConfig = { project: true, assignedTo: true };
 
   if (session.user.role === 'ADMIN' || session.user.role === 'MANAGER') {
-    tasks = await prisma.task.findMany({ include: includeConfig, orderBy: { dueDate: 'asc' } });
+    const [t, p, d] = await Promise.all([
+      prisma.task.findMany({ include: includeConfig, orderBy: { dueDate: 'asc' } }),
+      prisma.project.findMany(),
+      prisma.user.findMany({ where: { role: 'DEVELOPER' } })
+    ]);
+    tasks = t;
+    allProjects = p;
+    allDevelopers = d;
   } else if (session.user.role === 'DEVELOPER') {
-    tasks = await prisma.task.findMany({ where: { assignedToId: session.user.id }, include: includeConfig, orderBy: { dueDate: 'asc' } });
+    const [t, devP, d] = await Promise.all([
+      prisma.task.findMany({ where: { assignedToId: session.user.id }, include: includeConfig, orderBy: { dueDate: 'asc' } }),
+      prisma.projectDeveloper.findMany({ where: { developerId: session.user.id }, include: { project: true } }),
+      prisma.user.findMany({ where: { role: 'DEVELOPER' } })
+    ]);
+    tasks = t;
+    allProjects = devP.map(p => p.project);
+    allDevelopers = d;
   } else if (session.user.role === 'CLIENT') {
-    tasks = await prisma.task.findMany({ where: { project: { clientId: session.user.id } }, include: includeConfig, orderBy: { dueDate: 'asc' } });
-  }
-
-  let allProjects: any[] = [];
-  let allDevelopers: any[] = await prisma.user.findMany({ where: { role: 'DEVELOPER' } });
-  
-  if (session.user.role === 'ADMIN' || session.user.role === 'MANAGER') {
-    allProjects = await prisma.project.findMany();
-  } else if (session.user.role === 'DEVELOPER') {
-    const devProjects = await prisma.projectDeveloper.findMany({ where: { developerId: session.user.id }, include: { project: true } });
-    allProjects = devProjects.map(p => p.project);
-  } else if (session.user.role === 'CLIENT') {
-    allProjects = await prisma.project.findMany({ where: { clientId: session.user.id } });
+    const [t, p, d] = await Promise.all([
+      prisma.task.findMany({ where: { project: { clientId: session.user.id } }, include: includeConfig, orderBy: { dueDate: 'asc' } }),
+      prisma.project.findMany({ where: { clientId: session.user.id } }),
+      prisma.user.findMany({ where: { role: 'DEVELOPER' } })
+    ]);
+    tasks = t;
+    allProjects = p;
+    allDevelopers = d;
   }
 
   const getPriorityColor = (priority: string) => {
